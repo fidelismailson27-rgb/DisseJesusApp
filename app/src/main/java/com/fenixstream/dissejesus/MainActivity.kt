@@ -23,7 +23,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     var selectedTab by remember { mutableIntStateOf(1) }
-    // A URL oficial correta informada
     val targetUrl = "Https://youtube.com/@dissejesusoficial"
 
     Scaffold(
@@ -59,7 +58,6 @@ fun MainScreen() {
 @Composable
 fun YouTubeScreen(url: String) {
     AndroidView(
-        // CORREÇÃO CRÍTICA: Força a WebView a ocupar toda a tela disponível
         modifier = Modifier.fillMaxSize(), 
         factory = { context ->
             WebView(context).apply {
@@ -76,36 +74,53 @@ fun YouTubeScreen(url: String) {
                 }
 
                 webViewClient = object : WebViewClient() {
-                    // Restrição de Navegação Segura
+                    
+                    // Bloqueia navegação para fora do domínio do YouTube
                     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                         val newUrl = request?.url.toString()
-                        // Permite apenas navegação dentro do domínio do YouTube
-                        return if (newUrl.contains("youtube.com") || newUrl.contains("youtu.be")) {
-                            false // Permite o carregamento
-                        } else {
-                            true // Bloqueia saídas para sites externos (proteção)
-                        }
+                        return !newUrl.contains("youtube.com") && !newUrl.contains("youtu.be")
                     }
 
-                    // Injeção de JS para remover containers de anúncios
+                    // Injeção de Motor Anti-Ad e Restrição Visual
                     override fun onPageFinished(view: WebView?, url: String?) {
-                        val script = """
+                        val jsScript = """
                             (function() {
-                                var removeAds = function() {
-                                    var ads = document.querySelectorAll('.ad-container, .ad-interrupting, .ytp-ad-overlay-container, .promoted-sparkles-text-search-root, ytm-promoted-video-renderer');
-                                    for (var i = 0; i < ads.length; i++) { 
-                                        ads[i].style.display = 'none'; 
+                                // 1. INJEÇÃO DE CSS: Oculta anúncios e os vídeos recomendados (Força a ficar no canal)
+                                var style = document.createElement('style');
+                                style.innerHTML = `
+                                    /* Esconde Banners Promocionais */
+                                    ytm-promoted-video-renderer,
+                                    ytm-companion-ad-renderer,
+                                    .ad-container,
+                                    .ytp-ad-overlay-container,
+                                    /* Esconde "Vídeos Relacionados" para evitar fuga do canal */
+                                    ytm-item-section-renderer[section-identifier="related-items"],
+                                    .ytm-pivot-bar-renderer {
+                                        display: none !important;
                                     }
-                                    var skipBtn = document.querySelector('.ytp-ad-skip-button');
-                                    if (skipBtn) { skipBtn.click(); }
-                                };
-                                removeAds();
-                                // Observa mudanças na DOM para remover ads carregados dinamicamente
-                                var observer = new MutationObserver(removeAds);
-                                observer.observe(document.body, { childList: true, subtree: true });
+                                `;
+                                document.head.appendChild(style);
+
+                                // 2. LÓGICA DE VÍDEO: Pula o anúncio em vez de deixar a tela preta
+                                setInterval(function() {
+                                    // Tenta clicar no botão "Pular Anúncio" se ele existir
+                                    var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-ad-skip-button-modern');
+                                    if (skipBtn) { 
+                                        skipBtn.click(); 
+                                    }
+                                    
+                                    // Se o anúncio não for pulável, força o vídeo do anúncio a ir para o final imediatamente
+                                    var adIsShowing = document.querySelector('.ad-showing');
+                                    var video = document.querySelector('video');
+                                    if (adIsShowing && video) {
+                                        if (video.duration && video.currentTime < video.duration - 1) {
+                                            video.currentTime = video.duration - 0.5; // Avança para meio segundo antes do fim
+                                        }
+                                    }
+                                }, 500); // Roda a cada meio segundo
                             })();
                         """.trimIndent()
-                        view?.evaluateJavascript(script, null)
+                        view?.evaluateJavascript(jsScript, null)
                     }
                 }
                 
