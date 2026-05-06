@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     var selectedTab by remember { mutableIntStateOf(1) }
-    // URL fornecida pelo usuário
+    // A URL oficial correta informada
     val targetUrl = "Https://youtube.com/@dissejesusoficial"
 
     Scaffold(
@@ -58,47 +58,61 @@ fun MainScreen() {
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun YouTubeScreen(url: String) {
-    AndroidView(factory = { context ->
-        WebView(context).apply {
-            layoutParams = android.view.ViewGroup.LayoutParams(-1, -1)
-            
-            settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                mediaPlaybackRequiresUserGesture = false
-                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-            }
-
-            webViewClient = object : WebViewClient() {
-                // Bloqueio de anúncios via Injeção de JS
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    val script = """
-                        (function() {
-                            var ads = document.querySelectorAll('.ad-container, .ad-interrupting, .ytp-ad-overlay-container, .promoted-sparkles-text-search-root');
-                            for (var i = 0; i < ads.length; i++) { ads[i].remove(); }
-                            var video = document.querySelector('video');
-                            if (video && document.querySelector('.ytp-ad-skip-button')) {
-                                video.currentTime = video.duration;
-                                document.querySelector('.ytp-ad-skip-button').click();
-                            }
-                        })();
-                    """.trimIndent()
-                    view?.evaluateJavascript(script, null)
+    AndroidView(
+        // CORREÇÃO CRÍTICA: Força a WebView a ocupar toda a tela disponível
+        modifier = Modifier.fillMaxSize(), 
+        factory = { context ->
+            WebView(context).apply {
+                layoutParams = android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                
+                settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
+                    mediaPlaybackRequiresUserGesture = false
+                    mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                 }
 
-                // Restrição de Navegação (Somente permite o canal/URL base)
-                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                    val newUrl = request?.url.toString()
-                    return if (newUrl.contains("youtube.com") && !newUrl.contains("googleusercontent.com/youtube.com/3")) {
-                        true
-                    } else {
-                        false
+                webViewClient = object : WebViewClient() {
+                    // Restrição de Navegação Segura
+                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                        val newUrl = request?.url.toString()
+                        // Permite apenas navegação dentro do domínio do YouTube
+                        return if (newUrl.contains("youtube.com") || newUrl.contains("youtu.be")) {
+                            false // Permite o carregamento
+                        } else {
+                            true // Bloqueia saídas para sites externos (proteção)
+                        }
+                    }
+
+                    // Injeção de JS para remover containers de anúncios
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        val script = """
+                            (function() {
+                                var removeAds = function() {
+                                    var ads = document.querySelectorAll('.ad-container, .ad-interrupting, .ytp-ad-overlay-container, .promoted-sparkles-text-search-root, ytm-promoted-video-renderer');
+                                    for (var i = 0; i < ads.length; i++) { 
+                                        ads[i].style.display = 'none'; 
+                                    }
+                                    var skipBtn = document.querySelector('.ytp-ad-skip-button');
+                                    if (skipBtn) { skipBtn.click(); }
+                                };
+                                removeAds();
+                                // Observa mudanças na DOM para remover ads carregados dinamicamente
+                                var observer = new MutationObserver(removeAds);
+                                observer.observe(document.body, { childList: true, subtree: true });
+                            })();
+                        """.trimIndent()
+                        view?.evaluateJavascript(script, null)
                     }
                 }
+                
+                webChromeClient = WebChromeClient()
+                loadUrl(url)
             }
-            
-            webChromeClient = WebChromeClient()
-            loadUrl(url)
-        }
-    }, update = { it.loadUrl(url) })
+        }, 
+        update = { it.loadUrl(url) }
+    )
 }
