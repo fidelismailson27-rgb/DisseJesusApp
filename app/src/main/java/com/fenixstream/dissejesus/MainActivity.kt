@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 
 class MainActivity : ComponentActivity() {
@@ -65,7 +66,6 @@ fun YouTubeScreen(url: String) {
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 mediaPlaybackRequiresUserGesture = false
-                // Melhora a performance bloqueando carregamento de imagens de terceiros se necessário
                 mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             }
 
@@ -89,11 +89,10 @@ fun YouTubeScreen(url: String) {
                 // Restrição de Navegação (Somente permite o canal/URL base)
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val newUrl = request?.url.toString()
-                    // Se o link não contiver a base do canal, bloqueia a navegação
                     return if (newUrl.contains("youtube.com") && !newUrl.contains("googleusercontent.com/youtube.com/3")) {
-                        true // Bloqueia
+                        true
                     } else {
-                        false // Permite
+                        false
                     }
                 }
             }
